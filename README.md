@@ -8,8 +8,11 @@ It helps users collect and organize publicly available domain information, inspe
 ### ReconX Dashboard
 ![ReconX Dashboard](screenshots/dashboard.png)
 
-### Public Intelligence Scan
-![Public Intelligence Results](screenshots/public-intelligence.png)
+### Public Domain Intelligence Demonstration
+> Note: This is a passive intelligence demonstration using publicly available information. No active security testing was performed against the target.
+This screenshot demonstrates ReconX's public domain
+intelligence capabilities, including DNS, RDAP, TLS,
+subdomain discovery and technology detection.
 
 ## Features
 
