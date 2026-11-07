@@ -3,6 +3,9 @@
 ReconX is a Python-based cybersecurity reconnaissance platform designed to bring essential domain intelligence and security assessment capabilities together in one dashboard.
 
 It helps users collect and organize publicly available domain information, inspect DNS records, review SSL/TLS certificates, discover subdomains, identify web technologies, and maintain scan history.
+## Dashboard Preview
+
+![ReconX Dashboard](screenshots/dashboard.png)
 
 ## Features
 
