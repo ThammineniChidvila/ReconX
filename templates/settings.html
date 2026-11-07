@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="grid two">
+  <article class="card"><h2>Runtime</h2><dl class="kv" id="set-runtime"></dl></article>
+  <article class="card"><h2>Limits and timeouts</h2><dl class="kv" id="set-limits"></dl>
+    <p class="muted">Change these with environment variables or a <code>.env</code> file (see <code>.env.example</code>), then restart ReconX.</p></article>
+</section>
+<section class="card"><h2>Safe port list</h2><div id="set-ports" class="chips"></div></section>
+<section class="card"><h2>Stored data</h2>
+  <p class="muted">Everything is stored locally in SQLite. Clearing data cannot be undone.</p>
+  <div class="actions">
+    <button class="btn danger" id="clear-scans" type="button">Clear scan history</button>
+    <button class="btn danger" id="clear-verifs" type="button">Reset domain verifications</button>
+  </div>
+</section>
+{% endblock %}

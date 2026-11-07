@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <h2>1. Prove you control the domain</h2>
+  <p class="muted">Active port assessment is only available for domains you can prove you control with a DNS TXT record. It checks a fixed list of 14 common ports with short timeouts.</p>
+  <form id="verify-form" class="inline-form" autocomplete="off">
+    <label class="sr" for="pa-domain">Domain you own</label>
+    <input id="pa-domain" type="text" placeholder="yourdomain.com" spellcheck="false" maxlength="253">
+    <button class="btn" type="submit">Get verification token</button>
+  </form>
+  <p class="form-msg" id="pa-msg" role="status"></p>
+  <div id="pa-record" hidden>
+    <h3>2. Add this DNS record</h3>
+    <dl class="kv">
+      <dt>Type</dt><dd id="r-type">TXT</dd>
+      <dt>Name / host</dt><dd><code id="r-name"></code> <button class="btn small" data-copy="r-name" type="button">Copy</button></dd>
+      <dt>Value</dt><dd><code id="r-value"></code> <button class="btn small" data-copy="r-value" type="button">Copy</button></dd>
+    </dl>
+    <p class="muted">Some DNS providers want only the part before your domain (<code>_reconx</code>) as the host. DNS changes can take a few minutes.</p>
+    <div class="actions">
+      <button class="btn" id="pa-check" type="button">3. Check DNS record</button>
+      <span class="badge" id="pa-state">Not verified</span>
+    </div>
+  </div>
+</section>
+<section class="card" id="pa-scan-card" hidden>
+  <h2>4. Run the port assessment</h2>
+  <p class="muted">Ownership is re-checked when you start. Ports: <span id="pa-ports"></span>.</p>
+  <button class="btn primary" id="pa-start" type="button">Start port assessment</button>
+</section>
+<section class="card" id="pa-results" hidden><h2>Assessment results</h2><div id="pa-results-body"></div></section>
+{% endblock %}

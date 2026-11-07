@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card">
+  <div class="toolbar">
+    <label class="sr" for="h-filter">Filter scans</label>
+    <input id="h-filter" type="search" placeholder="Filter by domain" spellcheck="false">
+    <select id="h-type" aria-label="Scan type"><option value="">All scan types</option><option value="intelligence">Intelligence</option><option value="port_assessment">Port assessment</option></select>
+  </div>
+  <div class="table-wrap"><table class="table" id="history-table">
+    <thead><tr><th>Domain</th><th>Type</th><th>Started (UTC)</th><th>Status</th><th>Verification</th><th></th></tr></thead><tbody></tbody></table></div>
+  <p class="empty" id="history-empty" hidden>No scans match. Run a scan from the bar above.</p>
+</section>
+{% endblock %}

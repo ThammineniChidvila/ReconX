@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="stats" id="stats">
+  <article class="stat"><span class="stat-label">Domains analysed</span><strong id="s-domains">-</strong></article>
+  <article class="stat"><span class="stat-label">Intelligence scans</span><strong id="s-scans">-</strong></article>
+  <article class="stat"><span class="stat-label">Subdomains discovered</span><strong id="s-subs">-</strong></article>
+  <article class="stat"><span class="stat-label">Verified targets</span><strong id="s-verified">-</strong></article>
+</section>
+<section class="grid two">
+  <article class="card"><h2>Scan activity, last 7 days</h2><div id="chart-activity" class="chart"></div></article>
+  <article class="card"><h2>Scan status</h2><div id="chart-status" class="chart donut-wrap"></div></article>
+</section>
+<section class="card">
+  <div class="card-head"><h2>Recent scan activity</h2><a class="link" href="/history">View all history</a></div>
+  <div class="table-wrap"><table class="table" id="recent-table">
+    <thead><tr><th>Domain</th><th>Type</th><th>Started (UTC)</th><th>Status</th><th></th></tr></thead>
+    <tbody></tbody></table></div>
+  <p class="empty" id="recent-empty" hidden>No scans yet. Enter a domain in the bar above to run your first intelligence scan.</p>
+</section>
+{% endblock %}

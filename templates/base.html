@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} - ReconX</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='none' stroke='%2325d0ee' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='3' fill='%232f7bff'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body data-page="{{ active }}" data-section="{{ section|default('') }}">
+{% set icons = {
+ 'overview':'M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z',
+ 'intelligence':'M12 3a9 9 0 100 18 9 9 0 000-18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
+ 'dns':'M4 5h16v5H4zM4 14h16v5H4zM7 7.5h.01M7 16.5h.01',
+ 'rdap':'M3 6h18v12H3zM7 10h4M7 14h6M15 10h2',
+ 'ssl':'M6 11h12v9H6zM8 11V8a4 4 0 018 0v3',
+ 'subdomains':'M5 5h4v4H5zM15 5h4v4h-4zM10 15h4v4h-4zM7 9v3h10V9M12 12v3',
+ 'technology':'M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4',
+ 'ports':'M12 4a8 8 0 100 16 8 8 0 000-16zM12 10a2 2 0 100 4 2 2 0 000-4zM12 2v3M12 19v3M2 12h3M19 12h3',
+ 'history':'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7v5l3 2',
+ 'reports':'M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6',
+ 'settings':'M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M6 15v4'} %}
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/">
+      <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5" class="ring"/><circle cx="12" cy="12" r="2.6" fill="var(--blue)" stroke="none"/><path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4" class="ring"/></svg>
+      <span>ReconX</span>
+    </a>
+    <nav>
+      {% for key, href, label in nav %}
+      <a href="{{ href }}" class="{{ 'active' if key == active }}">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ icons[key] }}"/></svg>
+        <span>{{ label }}</span>
+      </a>
+      {% endfor %}
+    </nav>
+    <p class="side-note">Passive checks work on any public domain. Port assessment requires DNS ownership proof.</p>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <form id="target-form" autocomplete="off">
+        <label class="sr" for="target-input">Domain to analyse</label>
+        <input id="target-input" type="text" placeholder="Enter a domain, e.g. example.com" spellcheck="false" maxlength="253">
+        <button class="btn primary" type="submit" id="target-btn">Run intelligence scan</button>
+      </form>
+      <ol class="pipeline" id="pipeline" hidden aria-live="polite">
+        <li data-mod="dns">DNS</li><li data-mod="rdap">RDAP</li><li data-mod="ssl">TLS</li>
+        <li data-mod="subdomains">Subdomains</li><li data-mod="technology">Technology</li>
+      </ol>
+      <p class="form-msg" id="target-msg" role="status"></p>
+    </header>
+    <main class="content">
+      <h1 class="page-title">{{ title }}</h1>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<div id="toasts" aria-live="polite"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
+</body>
+</html>
