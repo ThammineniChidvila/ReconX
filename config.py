@@ -31,6 +31,7 @@ HOST = "127.0.0.1"                       # local only - never bind to 0.0.0.0
 PORT = _num("RECONX_PORT", 5000, int)
 DATABASE_PATH = os.getenv("RECONX_DB", str(BASE_DIR / "database" / "reconx.db"))
 DATABASE_URL = os.getenv("DATABASE_URL")
+SECRET_KEY = os.getenv("SECRET_KEY")
 REPORTS_DIR = BASE_DIR / "reports"
 
 # Timeouts (seconds)

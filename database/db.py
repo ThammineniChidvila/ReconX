@@ -13,6 +13,7 @@ _path = config.DATABASE_PATH
 SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS scans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id TEXT NOT NULL DEFAULT '',
     domain TEXT NOT NULL,
     scan_type TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -22,6 +23,8 @@ CREATE TABLE IF NOT EXISTS scans (
     results TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_scans_domain ON scans(domain);
+
+
 CREATE TABLE IF NOT EXISTS verifications (
     domain TEXT PRIMARY KEY,
     token TEXT NOT NULL,
@@ -34,6 +37,7 @@ CREATE TABLE IF NOT EXISTS verifications (
 POSTGRES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS scans (
     id BIGSERIAL PRIMARY KEY,
+    owner_id TEXT NOT NULL DEFAULT '',
     domain TEXT NOT NULL,
     scan_type TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -43,6 +47,8 @@ CREATE TABLE IF NOT EXISTS scans (
     results TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS idx_scans_domain ON scans(domain);
+
+
 CREATE TABLE IF NOT EXISTS verifications (
     domain TEXT PRIMARY KEY,
     token TEXT NOT NULL,
@@ -107,5 +113,27 @@ def init_db():
             for statement in POSTGRES_SCHEMA.split(";"):
                 if statement.strip():
                     conn.execute(statement)
+
+            conn.execute(
+                "ALTER TABLE scans ADD COLUMN IF NOT EXISTS owner_id TEXT NOT NULL DEFAULT ''"
+            )
+            conn.execute(
+                  "CREATE INDEX IF NOT EXISTS idx_scans_owner ON scans(owner_id)"
+            )
+
         else:
             conn.executescript(SQLITE_SCHEMA)
+
+            columns = {
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(scans)").fetchall()
+            }
+
+            if "owner_id" not in columns:
+                conn.execute(
+                    "ALTER TABLE scans ADD COLUMN owner_id TEXT NOT NULL DEFAULT ''"
+                )
+
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_scans_owner ON scans(owner_id)"
+            )

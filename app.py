@@ -3,9 +3,10 @@ import os
 import logging
 import platform
 import threading
+import secrets
 from urllib.parse import urlsplit
 
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, jsonify, render_template, request, send_file, session
 
 import config
 from database import db, models
@@ -42,11 +43,28 @@ def _err(message, code=400):
 
 def create_app():
     app = Flask(__name__)
-    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
+
+    app.secret_key = config.SECRET_KEY or (
+        secrets.token_urlsafe(32) if not os.getenv("VERCEL") else None
+    )
+
+    if not app.secret_key:
+        raise RuntimeError("SECRET_KEY must be configured in Vercel.")
+
+    app.config.update(
+        MAX_CONTENT_LENGTH=16 * 1024,
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SECURE=bool(os.getenv("VERCEL")),
+        SESSION_COOKIE_SAMESITE="Lax"
+    )
     if not os.getenv("VERCEL"):
         config.REPORTS_DIR.mkdir(exist_ok=True)
+    @app.before_request
+    def ensure_owner_id():
+        if "owner_id" not in session:
+            session["owner_id"] = secrets.token_urlsafe(32)
     db.init_db()
-    models.fail_stale_scans()
+    
 
     @app.before_request
     def csrf_guard():
@@ -91,9 +109,17 @@ def create_app():
         if models.count_running() >= config.MAX_ACTIVE_SCANS:
             return _err("Too many scans are running. Wait for one to finish.", 429)
         from datetime import datetime, timezone
-        scan_id = models.create_scan(check["domain"], "intelligence", results={"domain_info": {
-            "input": check["input"], "domain": check["domain"], "valid": True,
-            "scanned_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}})
+        scan_id = models.create_scan(
+    session["owner_id"],
+    check["domain"],
+    "intelligence",
+    results={"domain_info": {
+        "input": check["input"],
+        "domain": check["domain"],
+        "valid": True,
+        "scanned_at": datetime.now(timezone.utc).isoformat(timespec="seconds")
+    }}
+)
         _run_scan(scan_id, check["domain"])
         return jsonify({"scan_id": scan_id, "domain": check["domain"]}), 202
     def _run_scan(scan_id, domain):
@@ -105,24 +131,33 @@ def create_app():
 
     @app.get("/api/scans")
     def api_list_scans():
-        return jsonify(models.list_scans(request.args.get("limit", 100, type=int), request.args.get("type")))
+      return jsonify(
+        models.list_scans(
+            session["owner_id"],
+            request.args.get("limit", 100, type=int),
+            request.args.get("type")
+        )
+    )
 
     @app.get("/api/scans/<int:scan_id>")
     def api_get_scan(scan_id):
-        scan = models.get_scan(scan_id)
-        return jsonify(scan) if scan else _err("Scan not found.", 404)
-
+      scan = models.get_scan(scan_id, session["owner_id"])
+      return jsonify(scan) if scan else _err("Scan not found.", 404)
     @app.get("/api/scans/<int:scan_id>/report")
     def api_report(scan_id):
-        scan = models.get_scan(scan_id)
+        scan = models.get_scan(scan_id, session["owner_id"])
         if not scan:
             return _err("Scan not found.", 404)
         if scan["status"] == "running":
             return _err("Scan is still running.", 409)
         if scan["scan_type"] == "intelligence":
-            intel, ports = scan, models.latest_scan(scan["domain"], "port_assessment")
+            intel, ports = scan, models.latest_scan(
+               session["owner_id"], scan["domain"], "port_assessment"
+            )
         else:
-            intel, ports = models.latest_scan(scan["domain"], "intelligence"), scan
+            intel, ports = models.latest_scan(
+              session["owner_id"], scan["domain"], "intelligence"
+            ), scan
         try:
             path = generate_report(intel, ports)
         except Exception:
@@ -132,63 +167,20 @@ def create_app():
 
     @app.get("/api/stats")
     def api_stats():
-        return jsonify(models.stats())
+       return jsonify(models.stats(session["owner_id"]))
 
     @app.route("/api/verification", methods=["GET", "POST"])
     def api_verification():
-        data = request.get_json(silent=True) if request.method == "POST" else {"domain": request.args.get("domain")}
-        check = validate_domain((data or {}).get("domain"))
-        if not check["valid"]:
-            return _err(check["error"])
-        domain = check["domain"]
-        row = models.get_or_create_verification(domain, pa.generate_token) if request.method == "POST" else models.get_verification(domain)
-        if not row:
-            return jsonify({"domain": domain, "token": None, "verified": False})
-        return jsonify({"domain": domain, "verified": bool(row["verified"]), "record": pa.verification_record(domain, row["token"])})
-
+           return _err("Domain verification is disabled on the public demo.", 403)
     @app.post("/api/verification/check")
     def api_verification_check():
-        check = body_domain()
-        if not check["valid"]:
-            return _err(check["error"])
-        row = models.get_verification(check["domain"])
-        if not row:
-            return _err("Generate a verification token first.", 404)
-        res = pa.check_verification(check["domain"], row["token"])
-        models.set_verified(check["domain"], res["verified"])
-        return jsonify({"domain": check["domain"], **res})
-
+        return _err("Domain verification is disabled on the public demo.", 403)
     @app.post("/api/ports/scan")
     def api_port_scan():
-        check = body_domain()
-        if not check["valid"]:
-            return _err(check["error"])
-        domain = check["domain"]
-        row = models.get_verification(domain)
-        if not row:
-            return _err("Domain is not verified. Generate a token and add the DNS TXT record first.", 403)
-        if not pa.check_verification(domain, row["token"])["verified"]:   # re-verify at scan time
-            models.set_verified(domain, False)
-            return _err("The DNS TXT verification record was not found. Port assessment refused.", 403)
-        models.set_verified(domain, True)
-        if not _port_lock.acquire(blocking=False):
-            return _err("Another port assessment is already running.", 429)
-        scan_id = models.create_scan(domain, "port_assessment", verification_status="verified")
-        try:
-            result = pa.assess_ports(domain, verified=True)
-            models.set_results(scan_id, result)
-            models.finish_scan(scan_id, "completed")
-            return jsonify({"scan_id": scan_id, "result": result})
-        except UnsafeTargetError as exc:
-            models.set_results(scan_id, {"status": "blocked", "message": str(exc)})
-            models.finish_scan(scan_id, "failed")
-            return _err(str(exc), 400)
-        finally:
-            _port_lock.release()
-
+        return _err("Port assessment is disabled on the public demo.", 403)
     @app.get("/api/settings")
     def api_settings():
-        s = models.stats()
+        s = models.stats(session["owner_id"])
         return jsonify({"version": config.VERSION, "python": platform.python_version(), "host": config.HOST, "port": config.PORT,
                         "timeouts": {"dns": config.DNS_TIMEOUT, "http": config.HTTP_TIMEOUT, "ssl": config.SSL_TIMEOUT,
                                      "crt.sh": config.CRTSH_TIMEOUT, "port connect": config.PORT_CONNECT_TIMEOUT},
@@ -197,14 +189,7 @@ def create_app():
 
     @app.delete("/api/data")
     def api_clear():
-        what = (request.get_json(silent=True) or {}).get("what")
-        if what == "scans":
-            models.clear_scans()
-        elif what == "verifications":
-            models.clear_verifications()
-        else:
-            return _err("Unknown data set.")
-        return jsonify({"cleared": what})
+        return _err("Data deletion is disabled on the public demo.", 403) 
 
     @app.errorhandler(404)
     def not_found(_):

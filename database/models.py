@@ -33,20 +33,19 @@ def _scan(row, full=True):
     return d
 
 
-def create_scan(domain, scan_type, status="running",
+def create_scan(owner_id, domain, scan_type, status="running",
                 verification_status="not_required", results=None):
 
     with write_lock, connect() as c:
         cur = c.execute(
             """INSERT INTO scans
-            (domain, scan_type, status, verification_status, started_at, results)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (owner_id, domain, scan_type, status, verification_status, started_at, results)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING id""",
-            (domain, scan_type, status, verification_status,
+            (owner_id, domain, scan_type, status, verification_status,
              now(), json.dumps(results or {}))
         )
         return _first_value(cur.fetchone())
-
 
 def set_section(scan_id, key, data):
     with write_lock, connect() as c:
@@ -75,18 +74,21 @@ def finish_scan(scan_id, status):
         )
 
 
-def get_scan(scan_id):
+def get_scan(scan_id, owner_id):
     with connect() as c:
         return _scan(
-            c.execute("SELECT * FROM scans WHERE id=?", (scan_id,)).fetchone()
+            c.execute(
+                "SELECT * FROM scans WHERE id=? AND owner_id=?",
+                (scan_id, owner_id)
+            ).fetchone()
         )
 
 
-def list_scans(limit=100, scan_type=None):
-    sql, args = "SELECT * FROM scans", []
+def list_scans(owner_id, limit=100, scan_type=None):
+    sql, args = "SELECT * FROM scans WHERE owner_id=?", [owner_id]
 
     if scan_type:
-        sql += " WHERE scan_type=?"
+        sql += " AND scan_type=?"
         args.append(scan_type)
 
     sql += " ORDER BY id DESC LIMIT ?"
@@ -96,17 +98,16 @@ def list_scans(limit=100, scan_type=None):
         return [_scan(row, full=False) for row in c.execute(sql, args)]
 
 
-def latest_scan(domain, scan_type):
+def latest_scan(owner_id, domain, scan_type):
     with connect() as c:
         row = c.execute(
             """SELECT * FROM scans
-            WHERE domain=? AND scan_type=? AND status!='running'
+            WHERE owner_id=? AND domain=? AND scan_type=? AND status!='running'
             ORDER BY id DESC LIMIT 1""",
-            (domain, scan_type)
+            (owner_id, domain, scan_type)
         ).fetchone()
 
         return _scan(row)
-
 
 def count_running():
     with connect() as c:
@@ -175,7 +176,7 @@ def set_verified(domain, verified):
 
 # ---- dashboard statistics -------------------------------------------------
 
-def stats():
+def stats(owner_id):
     with connect() as c:
 
         def one(sql, *args):
@@ -185,12 +186,13 @@ def stats():
 
         latest = c.execute(
             f"""SELECT results FROM scans
-            WHERE {intel}
+            WHERE owner_id=? AND {intel}
             AND id IN (
                 SELECT MAX(id) FROM scans
-                WHERE {intel}
+                WHERE owner_id=? AND {intel}
                 GROUP BY domain
-            )"""
+            )""",
+            (owner_id, owner_id)
         ).fetchall()
 
         subs = 0
@@ -203,7 +205,9 @@ def stats():
         by_status = {
             row["status"]: row["n"]
             for row in c.execute(
-                "SELECT status, COUNT(*) AS n FROM scans GROUP BY status"
+                """SELECT status, COUNT(*) AS n FROM scans
+                WHERE owner_id=? GROUP BY status""",
+                (owner_id,)
             )
         }
 
@@ -216,9 +220,9 @@ def stats():
             for row in c.execute(
                 """SELECT substr(started_at, 1, 10) AS d,
                 COUNT(*) AS n FROM scans
-                WHERE substr(started_at, 1, 10)>=?
+                WHERE owner_id=? AND substr(started_at, 1, 10)>=?
                 GROUP BY d""",
-                (since,)
+                (owner_id, since)
             )
         }
 
@@ -228,14 +232,19 @@ def stats():
         ]
 
         return {
-            "total_domains": one("SELECT COUNT(DISTINCT domain) FROM scans"),
-            "total_scans": one(f"SELECT COUNT(*) FROM scans WHERE {intel}"),
-            "total_subdomains": subs,
-            "verified_targets": one(
-                "SELECT COUNT(*) FROM verifications WHERE verified=TRUE"
+            "total_domains": one(
+                "SELECT COUNT(DISTINCT domain) FROM scans WHERE owner_id=?",
+                owner_id
             ),
+            "total_scans": one(
+                f"SELECT COUNT(*) FROM scans WHERE owner_id=? AND {intel}",
+                owner_id
+            ),
+            "total_subdomains": subs,
+            "verified_targets": 0,
             "port_assessments": one(
-                "SELECT COUNT(*) FROM scans WHERE scan_type='port_assessment'"
+                "SELECT COUNT(*) FROM scans WHERE owner_id=? AND scan_type='port_assessment'",
+                owner_id
             ),
             "by_status": by_status,
             "activity": [
@@ -243,7 +252,6 @@ def stats():
                 for day in days
             ],
         }
-
 
 def set_results(scan_id, results):
     with write_lock, connect() as c:
