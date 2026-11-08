@@ -3,3 +3,4 @@ dnspython>=2.6
 requests>=2.31
 beautifulsoup4>=4.12
 reportlab>=4.2
+psycopg[binary]>=3.2

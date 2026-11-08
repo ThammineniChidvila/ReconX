@@ -1,5 +1,7 @@
 """PDF report generation with reportlab. Only collected data is included."""
+import os
 from pathlib import Path
+import tempfile
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -124,11 +126,33 @@ def build_story(scan, port_scan=None):
 
 
 def generate_report(scan, port_scan=None, out_dir=None):
-    out_dir = Path(out_dir or config.REPORTS_DIR)
-    out_dir.mkdir(parents=True, exist_ok=True)
     base = scan or port_scan
-    path = out_dir / f"ReconX_{base['domain']}_{base['id']}.pdf"
-    doc = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=18 * mm,
-                            title=f"ReconX report - {base['domain']}", author="ReconX")
-    doc.build(build_story(scan, port_scan), onFirstPage=_footer, onLaterPages=_footer)
+
+    if out_dir is not None:
+        output_dir = Path(out_dir)
+    elif os.getenv("VERCEL"):
+        output_dir = Path(tempfile.gettempdir()) / "reconx-reports"
+    else:
+        output_dir = config.REPORTS_DIR
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    path = output_dir / f"ReconX_{base['domain']}_{base['id']}.pdf"
+
+    doc = SimpleDocTemplate(
+        str(path),
+        pagesize=A4,
+        leftMargin=20 * mm,
+        rightMargin=20 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+        title=f"ReconX report - {base['domain']}",
+        author="ReconX"
+    )
+
+    doc.build(
+        build_story(scan, port_scan),
+        onFirstPage=_footer,
+        onLaterPages=_footer
+    )
     return path

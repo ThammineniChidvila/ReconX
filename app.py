@@ -1,4 +1,5 @@
 """ReconX - Flask application entry point."""
+import os
 import logging
 import platform
 import threading
@@ -42,7 +43,8 @@ def _err(message, code=400):
 def create_app():
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
-    config.REPORTS_DIR.mkdir(exist_ok=True)
+    if not os.getenv("VERCEL"):
+        config.REPORTS_DIR.mkdir(exist_ok=True)
     db.init_db()
     models.fail_stale_scans()
 
@@ -92,9 +94,8 @@ def create_app():
         scan_id = models.create_scan(check["domain"], "intelligence", results={"domain_info": {
             "input": check["input"], "domain": check["domain"], "valid": True,
             "scanned_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}})
-        threading.Thread(target=_run_scan, args=(scan_id, check["domain"]), daemon=True).start()
+        _run_scan(scan_id, check["domain"])
         return jsonify({"scan_id": scan_id, "domain": check["domain"]}), 202
-
     def _run_scan(scan_id, domain):
         try:
             run_intelligence_scan(scan_id, domain)
@@ -218,7 +219,9 @@ def create_app():
     return app
 
 
+app = create_app()
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     print(f"\n  ReconX {config.VERSION} running at http://{config.HOST}:{config.PORT}\n")
-    create_app().run(host=config.HOST, port=config.PORT, debug=False, threaded=True)
+    app.run(host=config.HOST, port=config.PORT, debug=False, threaded=True)
